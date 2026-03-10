@@ -1,0 +1,52 @@
+# Arduino IDE 背後的真實結構**
+
+Arduino 的 `main()` 長這樣（可以在 arduino-esp32 的源碼裡找到）：
+
+```cpp
+// cores/esp32/main.cpp（arduino-esp32 的真實源碼）
+extern "C" void app_main() {
+    initArduino();
+    
+#if CONFIG_AUTOSTART_ARDUINO
+    // 在獨立的 FreeRTOS task 裡跑 Arduino 的 setup/loop
+    xTaskCreateUniversal(loopTask, "loopTask", ...);
+#endif
+}
+
+void loopTask(void *pvParameters) {
+    setup();
+    while (true) {
+        loop();
+        // 還有處理 yield、串口事件等
+        if (serialEventRun) serialEventRun();
+    }
+}
+```
+
+## 所以 Arduino IDE 背後其實是：
+
+```
+app_main()
+  └─ initArduino()
+  └─ xTaskCreateUniversal(loopTask)   ← FreeRTOS task
+       └─ setup()
+       └─ while(true) loop()
+```
+
+---
+
+## **我們的版本 vs Arduino IDE 的差異**
+
+| | Arduino IDE 背後 | 我們的移植 |
+|--|--|--|
+| setup/loop 執行方式 | 獨立 FreeRTOS task | 直接在 app_main 跑 |
+| `CONFIG_AUTOSTART_ARDUINO` | `y`（自動啟動） | `n`（手動控制） |
+| yield / serialEvent | 有處理 | 沒有 |
+
+我們把 `CONFIG_AUTOSTART_ARDUINO=n` 設在 `sdkconfig.defaults` 裡，就是為了**不讓 arduino-esp32 自動幫我們跑 loopTask**，改由自己的 `app_main` 手動控制流程。
+
+---
+
+## **為什麼要這樣做**
+
+`AUTOSTART_ARDUINO=y` 的話，arduino-esp32 會自動去找你的 `setup()` 和 `loop()`，但你失去了對 FreeRTOS task 優先權、stack size、啟動時序的控制權。設成 `n` 之後自己包，你可以在 `setup()` 之前做任何 ESP-IDF 層的初始化，這是做複雜專案時更穩健的做法。
