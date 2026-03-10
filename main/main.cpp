@@ -127,15 +127,15 @@ void drawFilledInscribedEllipse(int x_center, int y_center,
 
 // ── Eye drawing ───────────────────────────────────────────────────────────────
 void draw_eyes(int x, int y, int offset_second_eye, int offset_happy_eye) {
-    drawFilledInscribedEllipse(x, y, 0.9*eye_radius_x, 0.9*eye_radius_y,
+   /* drawFilledInscribedEllipse(x, y, 0.9*eye_radius_x, 0.9*eye_radius_y,
         1.0*eye_radius_x, 1.2*eye_radius_y,
         RGB(1,3,86),    RGB(0,0,0),    false, offset_second_eye);
     drawFilledInscribedEllipse(x, y, 0.7*eye_radius_x, 0.7*eye_radius_y,
         0.9*eye_radius_x, 0.9*eye_radius_y,
-        RGB(1,4,172),   RGB(1,3,86),   false, offset_second_eye);
+        RGB(1,4,172),   RGB(1,3,86),   false, offset_second_eye);*/ 
     drawFilledInscribedEllipse(x, y, 0.5*eye_radius_x, 0.5*eye_radius_y,
         0.7*eye_radius_x, 0.7*eye_radius_y,
-        RGB(1,178,226), RGB(1,4,172),  true,  offset_second_eye, offset_happy_eye);
+        RGB(1,178,226), RGB(0,1,4), true,  offset_second_eye, offset_happy_eye);
 }
 
 // ── Animations ────────────────────────────────────────────────────────────────
@@ -195,7 +195,7 @@ void draw_image() {
 // ── Arduino setup / loop (called from app_main below) ────────────────────────
 void setup() {
     tft.init();
-    tft.setRotation(3);
+    tft.setRotation(0);
     tft.fillScreen(ST7735_BLACK);
 
     tft.setCursor(0, 0, 2);
@@ -206,7 +206,7 @@ void setup() {
     delay(2000);
 
     tft.fillScreen(ST7735_BLACK);
-    draw_image();
+    //draw_image();
 }
 
 void loop() {

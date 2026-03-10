@@ -168,16 +168,16 @@ dependencies:
 
 ## TFT_eSPI 精簡紀錄
 
-clone 下來的 TFT_eSPI 原始大小約 1.5MB，移除不需要的部分後縮減至 596K：
-
 | 移除項目 | 原因 |
 |---------|------|
-| `Fonts/` | 本專案未使用任何字型檔 |
-| `Tools/` | PC 端開發工具（Python/Processing），與編譯無關 |
-| `User_Setups/` | 各種板子的範例設定，已有自己的 User_Setup.h |
-| `TFT_Drivers/` 中非 ST7735 的驅動 | 共 58 個驅動，只留 3 個 ST7735 相關檔案 |
-| `Processors/` 中非 ESP32 的平台 | 移除 ESP8266、ESP32-S3、ESP32-C3、RP2040、STM32、Generic |
-| `examples/`、`docs/`、`.github/` | 文件與 CI，不影響編譯 |
+| `Tools/` | PC 端開發工具，與編譯無關 |
+| `TFT_Drivers/` 中非 ST7735 的 58 個驅動 | 只用 ST7735 |
+| `Processors/` 中非 ESP32 的平台 | 只用 ESP32 |
+| `.git/`、文件雜項 | 不需要 |
+| **保留** `Fonts/` | TFT_eSPI.h 內部直接 `#include`，必要 |
+| **保留** `User_Setups/` | menuconfig 流程參考，必要 |
+
+原始 clone：~15MB → 精簡後：**2.8MB**，縮減約 80%。
 
 ---
 
