@@ -1,0 +1,6 @@
+## IDF Component Manager manifest
+## This pulls in arduino-esp32 automatically on first build.
+dependencies:
+  espressif/arduino-esp32:
+    version: "3.3.7"
+    # Pinned to a release compatible with ESP-IDF v5.x

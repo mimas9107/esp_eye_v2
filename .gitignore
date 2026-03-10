@@ -1,0 +1,76 @@
+# =========================
+# ESP32 / ESP-IDF / Arduino
+# =========================
+build/
+sdkconfig
+*.elf
+*.bin
+*.map
+*.hex
+*.axf
+*.bin.*.bin
+*.o
+*.pio/
+*.d
+*.dep
+*.dmp
+
+# =========================
+# Python
+# =========================
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+venv/
+env/
+.venv/
+.env
+*.sqlite3
+*.log
+*.egg-info/
+
+# =========================
+# IDE / Editor
+# =========================
+.vscode/
+.idea/
+*.sublime-workspace
+*.sublime-project
+*.code-workspace
+
+# =========================
+# OS Files
+# =========================
+.DS_Store
+Thumbs.db
+
+# =========================
+# esp-sr / Models / Data
+# =========================
+model/
+*.wav
+*.pcm
+*.mp3
+*.m4a
+*.raw
+
+# =========================
+# Edge Impulse SDK (large, excluded — re-copy from esp-test if needed)
+# =========================
+#firmware/esp32_edge_impulse/edge-impulse-sdk/
+#firmware/esp32_edge_impulse/sdkconfig
+#firmware/esp32_edge_impulse/dependencies.lock
+
+# =========================
+# ESP-IDF build cache
+# =========================
+managed_components/
+.cache/
+*.old
+dependencies.lock
+# =========================
+# Session files
+# =========================
+session-*.md
+develop_journal/
