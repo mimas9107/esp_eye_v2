@@ -240,6 +240,18 @@ static void ui_draw_text(const char *text) {
     tft.println(text);
 }
 
+static void ui_log_metrics(ui_state_t state) {
+    uint32_t free_heap = heap_caps_get_free_size(MALLOC_CAP_8BIT);
+    ESP_LOGI(TAG_UI, "State=%d free_heap=%u", (int)state, (unsigned)free_heap);
+
+#if (configUSE_TRACE_FACILITY == 1) && (configGENERATE_RUN_TIME_STATS == 1)
+    char stats[512];
+    stats[0] = '\0';
+    vTaskGetRunTimeStats(stats);
+    ESP_LOGI(TAG_UI, "Task CPU%% (since boot):\n%s", stats);
+#endif
+}
+
 static void ui_apply_state(ui_state_t state) {
     switch (state) {
         case UI_SLEEPING:
@@ -272,18 +284,6 @@ static void ui_apply_state(ui_state_t state) {
 
 static void ui_log_fps(int fps) {
     ESP_LOGI(TAG_UI, "Idle FPS: %d", fps);
-}
-
-static void ui_log_metrics(ui_state_t state) {
-    uint32_t free_heap = heap_caps_get_free_size(MALLOC_CAP_8BIT);
-    ESP_LOGI(TAG_UI, "State=%d free_heap=%u", (int)state, (unsigned)free_heap);
-
-#if (configUSE_TRACE_FACILITY == 1) && (configGENERATE_RUN_TIME_STATS == 1)
-    char stats[512];
-    stats[0] = '\0';
-    vTaskGetRunTimeStats(stats);
-    ESP_LOGI(TAG_UI, "Task CPU%% (since boot):\n%s", stats);
-#endif
 }
 
 // ── Idle animation (lightweight, frame-based) ────────────────────────────────
