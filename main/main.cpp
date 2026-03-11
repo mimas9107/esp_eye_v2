@@ -28,6 +28,7 @@ TFT_eSPI tft = TFT_eSPI();
 // ── UI config ───────────────────────────────────────────────────────────────
 #define UI_TEST_MODE 1
 #define UI_TEST_STEP_MS 5000
+#define UI_IDLE_FPS 20
 static const char *TAG_UI = "UI";
 
 // ── RGB565 colour macro (unchanged from original) ─────────────────────────────
@@ -359,7 +360,7 @@ static void display_task(void *arg) {
     ui_state_t current_state = UI_IDLE;
     ui_apply_state(current_state);
 
-    const TickType_t frame_ticks = pdMS_TO_TICKS(1000 / 12);
+    const TickType_t frame_ticks = pdMS_TO_TICKS(1000 / UI_IDLE_FPS);
     TickType_t last_wake = xTaskGetTickCount();
     ui_event_t ev;
     uint32_t fps_last_ms = (uint32_t)millis();

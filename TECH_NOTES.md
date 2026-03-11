@@ -57,6 +57,6 @@ app_main()
 
 - 顯示由獨立 `display` task 執行並固定在 Core 1，避免影響主要流程。
 - UI 狀態透過 Queue 驅動：非 Idle 狀態只畫一次文字；Idle 狀態以低 FPS 跑眼睛動畫。
-- Idle FPS 會在序列埠輸出（log tag: `UI`），非 Idle 不計算 FPS 以避免額外負擔。
+- Idle FPS 會在序列埠輸出（log tag: `UI`），非 Idle 不計算 FPS 以避免額外負擔。Idle FPS 預設為 20（`UI_IDLE_FPS`）。
 - 測試模式為編譯期開關（`UI_TEST_MODE`）；開啟後會自動輪播狀態方便檢視。
 - 狀態切換時會輸出 free heap；若啟用 FreeRTOS run-time stats，會一併輸出各 task CPU 佔用。
