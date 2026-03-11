@@ -13,6 +13,8 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - 新增 ui_state 元件與喚醒流程狀態事件接線。
 - 完成 Edge Impulse 整合並通過建置、WiFi/NTP/WebSocket 與喚醒流程驗證（2026-03-12）。
 - 文件新增整合測試結果與資源使用摘要。
+- 新增 edge_impulse_events 元件，改由事件映射 UI 狀態以降低耦合。
+- 修正 edge_impulse_events 佇列長度為 1，符合 xQueueOverwrite 使用限制以避免重啟。
 
 ### Changed
 - Run the display loop in a dedicated task pinned to Core 1; app_main now spawns the task and idles.
