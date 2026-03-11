@@ -127,17 +127,19 @@ Arduino 框架把 `main()` 藏起來，框架幫你呼叫 `setup()` 和 `loop()`
 void setup() { ... }
 void loop()  { ... }
 
-// ESP-IDF 移植後
+// ESP-IDF 移植後（顯示任務固定在 Core 1）
 extern "C" void app_main() {
     initArduino();   // ← 這行是關鍵
-    setup();
+    xTaskCreatePinnedToCore(display_task, "display", 8192, NULL, 2, NULL, 1);
     while (true) {
-        loop();
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
 ```
 
 `initArduino()` 是 arduino-esp32 提供的函式，負責初始化 Arduino runtime 環境（GPIO、Serial、millis、SPI 等）。沒有這行，所有 Arduino API 都無法正常運作。
+
+顯示流程由 `display_task` 負責，並固定在 Core 1，避免與未來的主流程（喚醒詞偵測/錄音傳送）互相干擾。
 
 ---
 
@@ -184,3 +186,12 @@ dependencies:
 ## 注意事項
 
 編譯時會出現一些來自第三方庫的 warning（`missing initializer`、`TOUCH_CS not defined` 等），這些是 arduino-esp32 和 TFT_eSPI 與 ESP-IDF v5.5 的版本差異所致，不影響功能，可以忽略。
+
+---
+
+## 顯示任務與 UI 狀態（低負載）
+
+- 顯示由 `display_task` 執行並固定在 Core 1。
+- UI 狀態透過 Queue 驅動，非 Idle 狀態只畫一次英文文字提示，Idle 狀態以低 FPS 跑眼睛動畫。
+- Idle FPS 會輸出到序列埠（log tag: `UI`）。
+- 測試模式為編譯期開關：`UI_TEST_MODE`，開啟後會自動輪播狀態方便檢視。
