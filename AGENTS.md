@@ -12,9 +12,9 @@ This document defines workflow control, development contracts, and collaboration
 ## Required Reading Order
 1. README.md
 2. CHANGELOG.md
-3. TECH_NOTES.md
-4. SPEC.md
-5. This AGENTS.md
+3. SPEC.md
+4. This AGENTS.md
+5. TECH_NOTES.md (Help/support notes for technical memories)
 
 ## Workflow Control
 - Each change must have a clear scope and be traceable to a requirement or issue.
@@ -37,7 +37,7 @@ This document defines workflow control, development contracts, and collaboration
 
 ## Collaboration Rules
 - If you touch build, config, or component structure, update SPEC.md if behavior or contracts change.
-- Add or update CHANGELOG.md entries for any functional or visible behavior changes.
+- Add or update `CHANGELOG.md` entries for any functional or visible behavior changes.
 - Prefer ASCII in new files unless there is a strong reason to use another language.
 - Keep documentation factual and short; avoid duplicate content across files.
 

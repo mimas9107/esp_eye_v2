@@ -20,6 +20,7 @@
 #include "freertos/task.h"
 #include "freertos/queue.h"
 #include "esp_log.h"
+#include "esp_heap_caps.h"
 
 // ── TFT instance ──────────────────────────────────────────────────────────────
 TFT_eSPI tft = TFT_eSPI();
@@ -272,6 +273,18 @@ static void ui_log_fps(int fps) {
     ESP_LOGI(TAG_UI, "Idle FPS: %d", fps);
 }
 
+static void ui_log_metrics(ui_state_t state) {
+    uint32_t free_heap = heap_caps_get_free_size(MALLOC_CAP_8BIT);
+    ESP_LOGI(TAG_UI, "State=%d free_heap=%u", (int)state, (unsigned)free_heap);
+
+#if (configUSE_TRACE_FACILITY == 1) && (configGENERATE_RUN_TIME_STATS == 1)
+    char stats[512];
+    stats[0] = '\0';
+    vTaskGetRunTimeStats(stats);
+    ESP_LOGI(TAG_UI, "Task CPU%% (since boot):\n%s", stats);
+#endif
+}
+
 // ── Idle animation (lightweight, frame-based) ────────────────────────────────
 static void idle_anim_reset(void) {
     eye_reset();
@@ -305,6 +318,7 @@ static void idle_anim_step(void) {
         eye_radius_y = eye_radius_y_ref;
         draw_eyes(eye_center_x_ref - eye_pitch, 72, eye_pitch, eye_offset_happy_ref);
     }
+    ui_log_metrics(state);
 }
 
 // ── Arduino setup / loop (called from display task below) ────────────────────

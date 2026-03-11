@@ -8,6 +8,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ## [Unreleased]
 ### Added
 - Optional UI test cycle (compile-time) and idle FPS logging.
+- Log free heap on state transitions; task CPU stats when FreeRTOS run-time stats are enabled.
 
 ### Changed
 - Run the display loop in a dedicated task pinned to Core 1; app_main now spawns the task and idles.
