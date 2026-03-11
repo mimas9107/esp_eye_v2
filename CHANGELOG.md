@@ -22,6 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 
 ### Fixed
 - Yield during long draw loops to reduce task starvation and WDT risk.
+- Fix build break from misplaced UI metrics logging call.
 
 ### Security
 - 

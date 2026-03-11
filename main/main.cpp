@@ -267,6 +267,7 @@ static void ui_apply_state(ui_state_t state) {
             ui_draw_text("UNKNOWN");
             break;
     }
+    ui_log_metrics(state);
 }
 
 static void ui_log_fps(int fps) {
@@ -318,7 +319,6 @@ static void idle_anim_step(void) {
         eye_radius_y = eye_radius_y_ref;
         draw_eyes(eye_center_x_ref - eye_pitch, 72, eye_pitch, eye_offset_happy_ref);
     }
-    ui_log_metrics(state);
 }
 
 // ── Arduino setup / loop (called from display task below) ────────────────────
