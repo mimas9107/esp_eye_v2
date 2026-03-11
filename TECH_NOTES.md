@@ -60,3 +60,4 @@ app_main()
 - Idle FPS 會在序列埠輸出（log tag: `UI`），非 Idle 不計算 FPS 以避免額外負擔。Idle FPS 預設為 20（`UI_IDLE_FPS`）。
 - 測試模式為編譯期開關（`UI_TEST_MODE`）；開啟後會自動輪播狀態方便檢視。
 - 狀態切換時會輸出 free heap；若啟用 FreeRTOS run-time stats，會一併輸出各 task CPU 佔用。
+- Idle 動畫會定期顯示 happy 表情，採分幀執行（每幀一步）以避免阻塞與狀態延遲。

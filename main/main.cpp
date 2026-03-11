@@ -26,7 +26,7 @@
 TFT_eSPI tft = TFT_eSPI();
 
 // ── UI config ───────────────────────────────────────────────────────────────
-#define UI_TEST_MODE 1
+#define UI_TEST_MODE 0
 #define UI_TEST_STEP_MS 5000
 #define UI_IDLE_FPS 20
 static const char *TAG_UI = "UI";
@@ -53,6 +53,7 @@ int eye_offset_happy = eye_offset_happy_ref;
 int eye_center_x     = eye_center_x_ref;
 
 void eye_reset() {
+    // 還原眼睛幾何參數到參考值
     eye_radius_x     = eye_radius_x_ref;
     eye_radius_y     = eye_radius_y_ref;
     eye_pos_x        = eye_pos_x_ref;
@@ -168,6 +169,7 @@ void eye_blink() {
 }
 
 void eye_make_happy(bool reverse_to_normal = false) {
+    // 原始 Arduino 版本的 happy 形變序列（阻塞式）
     float offset_temp, offset_happy_temp;
     for (eye_offset_happy = 40; eye_offset_happy >= 20; eye_offset_happy -= 2) {
         offset_temp       = reverse_to_normal ? (40 - eye_offset_happy) + 20 : eye_offset_happy;
@@ -180,6 +182,7 @@ void eye_make_happy(bool reverse_to_normal = false) {
 }
 
 void demo_draw_eyes() {
+    // 原始 demo 流程（阻塞式）
     eye_reset();
     draw_eyes(eye_center_x - eye_pitch, 72, eye_pitch, eye_offset_happy);
     delay(2000);
@@ -225,15 +228,18 @@ typedef struct {
     uint32_t ts_ms;
 } ui_event_t;
 
+// UI 狀態事件佇列：只保留最新狀態
 static QueueHandle_t ui_queue = NULL;
 
 static void ui_set_state(ui_state_t state) {
+    // 覆寫式寫入，避免狀態堆積
     if (!ui_queue) return;
     ui_event_t ev = { state, (uint32_t)millis() };
     xQueueOverwrite(ui_queue, &ev);
 }
 
 static void ui_draw_text(const char *text) {
+    // 低成本狀態顯示（英文文字）
     tft.fillScreen(ST7735_BLACK);
     tft.setCursor(0, 50, 2);
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
@@ -242,6 +248,7 @@ static void ui_draw_text(const char *text) {
 }
 
 static void ui_log_metrics(ui_state_t state) {
+    // 狀態切換時記錄資源狀態
     uint32_t free_heap = heap_caps_get_free_size(MALLOC_CAP_8BIT);
     ESP_LOGI(TAG_UI, "State=%d free_heap=%u", (int)state, (unsigned)free_heap);
 
@@ -254,6 +261,7 @@ static void ui_log_metrics(ui_state_t state) {
 }
 
 static void ui_apply_state(ui_state_t state) {
+    // 狀態切換只重繪一次，避免額外負載
     switch (state) {
         case UI_SLEEPING:
             ui_draw_text("SLEEP");
@@ -284,32 +292,47 @@ static void ui_apply_state(ui_state_t state) {
 }
 
 static void ui_log_fps(int fps) {
+    // 僅 Idle 狀態輸出 FPS
     ESP_LOGI(TAG_UI, "Idle FPS: %d", fps);
 }
 
 // ── Idle animation (lightweight, frame-based) ────────────────────────────────
 static void idle_anim_reset(void) {
+    // 每次回到 Idle 狀態時重置眼睛
     eye_reset();
 }
 
 static void idle_anim_step(void) {
+    // 分幀版動畫：每幀只做少量繪製，避免阻塞
     static const float blink_ratio[] = {1.0f, 0.85f, 0.75f, 0.55f, 0.4f, 0.3f, 0.2f, 0.1f, 0.05f};
     static const int blink_len = (int)(sizeof(blink_ratio) / sizeof(blink_ratio[0]));
     static bool blinking = false;
     static int blink_step = 0;
     static uint32_t next_blink_ms = 0;
+    static uint32_t next_happy_ms = 0;
+    static bool happy_active = false;
+    static bool happy_reverse = false;
+    static int happy_offset = 40;
+    const int happy_start = 40;
+    const int happy_end = 20;
+    const int happy_step = 1; // 每幀推進步進，數值越小越平滑
 
     uint32_t now = (uint32_t)millis();
+    if (next_happy_ms == 0) {
+        next_happy_ms = now + 8000;
+    }
     if (!blinking && now >= next_blink_ms) {
         blinking = true;
         blink_step = 0;
     }
 
     if (blinking) {
+        // 眨眼序列（縮放半徑）
         int total = blink_len * 2 - 2;
         int idx = (blink_step < blink_len) ? blink_step : (total - blink_step);
         eye_radius_y = (int)(eye_radius_y_ref * blink_ratio[idx]);
-        draw_eyes(eye_center_x_ref - eye_pitch, 72, eye_pitch, eye_offset_happy_ref);
+        int happy_draw = happy_active ? happy_offset : eye_offset_happy_ref;
+        draw_eyes(eye_center_x_ref - eye_pitch, 72, eye_pitch, happy_draw);
         blink_step++;
         if (blink_step >= total) {
             blinking = false;
@@ -317,13 +340,43 @@ static void idle_anim_step(void) {
             next_blink_ms = now + 2500;
         }
     } else {
+        // 非眨眼狀態下，分幀執行 happy 形變
         eye_radius_y = eye_radius_y_ref;
-        draw_eyes(eye_center_x_ref - eye_pitch, 72, eye_pitch, eye_offset_happy_ref);
+        if (now >= next_happy_ms && !happy_active) {
+            happy_active = true;
+            happy_reverse = false;
+            happy_offset = happy_start;
+            next_happy_ms = now + 8000;
+        }
+        if (happy_active) {
+            // 依照原始 eye_make_happy 的形變公式拆成每幀一步
+            float offset_temp = happy_reverse ? (float)((happy_start - happy_offset) + happy_end) : (float)happy_offset;
+            float offset_happy_temp = offset_temp;
+            offset_temp = (happy_start - offset_temp) / (float)happy_end * 6.0f;
+            eye_radius_x = eye_radius_x_ref + (int)offset_temp;
+            eye_radius_y = eye_radius_y_ref - (int)offset_temp;
+            draw_eyes(eye_center_x_ref - eye_pitch, 72, eye_pitch, (int)offset_happy_temp);
+
+            happy_offset -= happy_step;
+            if (happy_offset <= happy_end) {
+                if (!happy_reverse) {
+                    happy_reverse = true;
+                    happy_offset = happy_start;
+                } else {
+                    happy_active = false;
+                    eye_reset();
+                }
+            }
+        } else {
+            // 正常眼睛
+            draw_eyes(eye_center_x_ref - eye_pitch, 72, eye_pitch, eye_offset_happy_ref);
+        }
     }
 }
 
 // ── Arduino setup / loop (called from display task below) ────────────────────
 void setup() {
+    // 顯示初始化（只做一次）
     tft.init();
     tft.setRotation(0);
     tft.fillScreen(ST7735_BLACK);
@@ -332,6 +385,7 @@ void setup() {
 }
 
 void loop() {
+    // Idle 狀態的單幀更新
     idle_anim_step();
 }
 
@@ -368,6 +422,7 @@ static void display_task(void *arg) {
 
     while (true) {
         if (current_state == UI_IDLE) {
+            // Idle 狀態：固定 FPS 更新動畫
             if (xQueueReceive(ui_queue, &ev, 0) == pdTRUE) {
                 current_state = ev.state;
                 ui_apply_state(current_state);
@@ -384,6 +439,7 @@ static void display_task(void *arg) {
             }
             vTaskDelayUntil(&last_wake, frame_ticks);
         } else {
+            // 非 Idle：等待新狀態，保持靜態顯示
             if (xQueueReceive(ui_queue, &ev, portMAX_DELAY) == pdTRUE) {
                 current_state = ev.state;
                 ui_apply_state(current_state);

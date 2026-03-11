@@ -14,6 +14,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Run the display loop in a dedicated task pinned to Core 1; app_main now spawns the task and idles.
 - Added a UI state queue to render text-only status screens and a lightweight idle animation.
 - Bump idle animation target FPS to 20.
+- Idle animation now includes happy expression via frame-based steps (non-blocking).
 
 ### Deprecated
 - 
