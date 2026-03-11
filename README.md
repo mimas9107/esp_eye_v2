@@ -47,6 +47,7 @@ esp_eye_v2/
         ├── edge-impulse-sdk/
         ├── tflite-model/
         └── model-parameters/
+    └── edge_impulse_events/    ← Edge Impulse 事件佇列元件
     └── ui_state/               ← UI 狀態佇列元件
 ```
 
@@ -198,6 +199,7 @@ dependencies:
 
 - 顯示由 `display_task` 執行並固定在 Core 1。
 - UI 狀態透過 Queue 驅動，非 Idle 狀態只畫一次英文文字提示，Idle 狀態以低 FPS 跑眼睛動畫。
+- Edge Impulse 僅發布事件（`edge_impulse_events`），由主程式將事件映射為 UI 狀態。
 
 ---
 

@@ -8,6 +8,7 @@ This project is an ESP32 demo that renders an animated eye on an ST7735 128x160 
 - Local components:
   - components/TFT_eSPI: trimmed TFT_eSPI port for ESP32 + ST7735 only.
   - components/edge_impulse: Edge Impulse SDK 包裝元件（可選，Kconfig 開關控制）。
+  - components/edge_impulse_events: Edge Impulse 事件佇列（輸出喚醒/錄音/送出等事件）。
   - components/ui_state: UI 狀態佇列與事件介面（供顯示與喚醒流程共用）。
   - main: application entry (main.cpp) and assets (image.h).
 - Managed components:
@@ -29,6 +30,7 @@ This project is an ESP32 demo that renders an animated eye on an ST7735 128x160 
   - 使用 CONFIG_EDGE_IMPULSE_ENABLE 控制是否編譯 SDK。
   - 啟用時需將 edge-impulse-sdk、tflite-model、model-parameters 放在 components/edge_impulse/ 之下。
   - 目前 WiFi/NTP/WebSocket 由 Edge Impulse 元件內部初始化；WiFi 優先讀取 NVS，缺省時使用 Kconfig（`ESP_MIAO_WIFI_SSID` / `ESP_MIAO_WIFI_PASSWORD`）。
+  - Edge Impulse 只輸出事件（edge_impulse_events），UI 由主程式映射與顯示。
 - Hardware configuration:
   - Use Kconfig via menuconfig for driver and pin mapping.
   - Do NOT hardcode pins in source; keep them in sdkconfig.

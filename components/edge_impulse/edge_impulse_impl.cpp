@@ -20,7 +20,7 @@
 #include <math.h>
 
 #include "edge_impulse.h"
-#include "ui_state.h"
+#include "edge_impulse_events.h"
 #include "edge-impulse-sdk/classifier/ei_run_classifier.h"
 
 #include "freertos/FreeRTOS.h"
@@ -309,7 +309,7 @@ static void handle_server_action(const char *json_str)
                 gpio_set_level((gpio_num_t)gpio_num, level);
                 ESP_LOGI(TAG, "[TS: %llu] GPIO %d set to %d", get_timestamp_ms(), gpio_num, level);
             }
-            ui_publish_state(UI_ACTION);
+            edge_event_publish(EDGE_EVT_ACTION, 0.0f);
         }
     } else if (type && strcmp(type->valuestring, "play") == 0) {
         cJSON *payload = cJSON_GetObjectItem(root, "payload");
@@ -317,7 +317,7 @@ static void handle_server_action(const char *json_str)
             const char *audio = cJSON_GetObjectItem(payload, "audio")->valuestring;
             ESP_LOGI(TAG, "[TS: %llu] Server requests playing audio: %s", get_timestamp_ms(), audio);
             // TODO: 若有喇叭可在此實作播放
-            ui_publish_state(UI_ACTION);
+            edge_event_publish(EDGE_EVT_ACTION, 0.0f);
         }
     }
 
@@ -337,7 +337,7 @@ static void websocket_event_handler(void *handler_args, esp_event_base_t base, i
         case WEBSOCKET_EVENT_DISCONNECTED:
             ESP_LOGW(TAG, "WEBSOCKET_EVENT_DISCONNECTED");
             ws_connected = false;
-            ui_publish_state(UI_ERROR);
+            edge_event_publish(EDGE_EVT_ERROR, 0.0f);
             break;
         case WEBSOCKET_EVENT_DATA:
             if (data->data_len > 0) {
@@ -353,7 +353,7 @@ static void websocket_event_handler(void *handler_args, esp_event_base_t base, i
         case WEBSOCKET_EVENT_ERROR:
             ESP_LOGE(TAG, "WEBSOCKET_EVENT_ERROR: op_code=%d", data->op_code);
             ws_connected = false;
-            ui_publish_state(UI_ERROR);
+            edge_event_publish(EDGE_EVT_ERROR, 0.0f);
             break;
     }
 }
@@ -869,6 +869,7 @@ static void inference_task(void *arg)
 
     ei_impulse_result_t result = {};
 
+    bool prev_vad = false;
     while (1) {
         float current_rms = 0.0f;
         float current_fft_energy = 0.0f;
@@ -881,6 +882,10 @@ static void inference_task(void *arg)
         // 調用統一 VAD 偵測接口 (FFT 優先)
         bool vad_passed = vad_detect(ei_slice_buffer, EI_CLASSIFIER_SLICE_SIZE, 
                                      &current_rms, &current_fft_energy);
+        if (vad_passed && !prev_vad) {
+            edge_event_publish(EDGE_EVT_VAD_PASSED, 0.0f);
+        }
+        prev_vad = vad_passed;
 
         signal_t signal;
         signal.total_length = EI_CLASSIFIER_SLICE_SIZE;
@@ -920,7 +925,7 @@ static void inference_task(void *arg)
 
         if (wake_word_detected) {
             printf("\r\n>>> 🐱 WAKE WORD DETECTED! (Conf: %.3f) 🐱 <<<\r\n\r\n", detected_confidence);
-            ui_publish_state(UI_WAKE);
+            edge_event_publish(EDGE_EVT_WAKE_WORD, detected_confidence);
             
             // --- WebSocket 緊急重連機制 (v0.4.5) ---
             if (!ws_connected || !esp_websocket_client_is_connected(ws_client)) {
@@ -953,7 +958,7 @@ static void inference_task(void *arg)
             }
             
             printf(">>> REC: Starting 3-second recording...\r\n");
-            ui_publish_state(UI_LISTENING);
+            edge_event_publish(EDGE_EVT_RECORD_START, detected_confidence);
             
             // Allocate memory dynamically
             recording_buffer = (int16_t *)malloc(AUDIO_BUFFER_SIZE_3S);
@@ -982,7 +987,7 @@ static void inference_task(void *arg)
                 printf(">>> WAV: Sending %zu samples via WebSocket (%s) at TS: %llu...\r\n", 
                        recording_samples, USE_BINARY_STREAM ? "Binary" : "Base64 Streaming", ts);
                 
-                ui_publish_state(UI_THINKING);
+                edge_event_publish(EDGE_EVT_SEND_START, detected_confidence);
                 bool sent = false;
                 if (USE_BINARY_STREAM) {
                     sent = send_audio_stream_binary(recording_buffer, recording_samples, detected_confidence);
@@ -994,7 +999,7 @@ static void inference_task(void *arg)
                     printf(">>> WAV: Sent successfully!\r\n");
                 } else {
                     printf(">>> WAV: Send failed!\r\n");
-                    ui_publish_state(UI_ERROR);
+                    edge_event_publish(EDGE_EVT_SEND_FAIL, detected_confidence);
                 }
             }
             

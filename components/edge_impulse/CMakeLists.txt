@@ -52,7 +52,7 @@ if(CONFIG_EDGE_IMPULSE_ENABLE)
 
     idf_component_register(SRCS "edge_impulse_impl.cpp" "${SOURCE_FILES}"
                            INCLUDE_DIRS "${include_dirs}"
-                           REQUIRES esp_http_client esp_websocket_client esp_wifi esp_event nvs_flash esp_partition esp_netif esp_driver_gpio esp_driver_i2s driver esp_timer esp_system esp_common ui_state)
+                           REQUIRES esp_http_client esp_websocket_client esp_wifi esp_event nvs_flash esp_partition esp_netif esp_driver_gpio esp_driver_i2s driver esp_timer esp_system esp_common edge_impulse_events)
 
     idf_component_get_property(JSON_LIB json COMPONENT_LIB)
     idf_component_get_property(DSP_LIB espressif__esp-dsp COMPONENT_LIB)
@@ -68,5 +68,5 @@ if(CONFIG_EDGE_IMPULSE_ENABLE)
 else()
     idf_component_register(SRCS "edge_impulse.cpp"
                            INCLUDE_DIRS "."
-                           REQUIRES ui_state)
+                           REQUIRES edge_impulse_events)
 endif()

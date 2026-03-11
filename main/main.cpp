@@ -22,6 +22,7 @@
 #include "esp_log.h"
 #include "esp_heap_caps.h"
 #include "ui_state.h"
+#include "edge_impulse_events.h"
 #if CONFIG_EDGE_IMPULSE_ENABLE
 #include "edge_impulse.h"
 #endif
@@ -275,6 +276,40 @@ static void ui_log_fps(int fps) {
     ESP_LOGI(TAG_UI, "Idle FPS: %d", fps);
 }
 
+static bool ui_state_from_edge_event(const edge_event_t *ev, ui_state_t *out_state) {
+    if (!ev || !out_state) return false;
+    switch (ev->type) {
+        case EDGE_EVT_WAKE_WORD:
+            *out_state = UI_WAKE;
+            return true;
+        case EDGE_EVT_RECORD_START:
+            *out_state = UI_LISTENING;
+            return true;
+        case EDGE_EVT_SEND_START:
+            *out_state = UI_THINKING;
+            return true;
+        case EDGE_EVT_SEND_FAIL:
+        case EDGE_EVT_ERROR:
+            *out_state = UI_ERROR;
+            return true;
+        case EDGE_EVT_ACTION:
+            *out_state = UI_ACTION;
+            return true;
+        default:
+            return false;
+    }
+}
+
+static void ui_process_edge_events(void) {
+    edge_event_t ev;
+    while (edge_event_pop(&ev, 0)) {
+        ui_state_t mapped;
+        if (ui_state_from_edge_event(&ev, &mapped)) {
+            ui_publish_state(mapped);
+        }
+    }
+}
+
 // ── Idle animation (lightweight, frame-based) ────────────────────────────────
 static void idle_anim_reset(void) {
     // 每次回到 Idle 狀態時重置眼睛
@@ -400,6 +435,7 @@ static void display_task(void *arg) {
     int fps_frames = 0;
 
     while (true) {
+        ui_process_edge_events();
         if (current_state == UI_IDLE) {
             // Idle 狀態：固定 FPS 更新動畫
             if (ui_pop_state(&ev, 0)) {
@@ -419,7 +455,7 @@ static void display_task(void *arg) {
             vTaskDelayUntil(&last_wake, frame_ticks);
         } else {
             // 非 Idle：等待新狀態，保持靜態顯示
-            if (ui_pop_state(&ev, portMAX_DELAY)) {
+            if (ui_pop_state(&ev, pdMS_TO_TICKS(50))) {
                 current_state = ev.state;
                 ui_apply_state(current_state);
                 if (current_state == UI_IDLE) {
@@ -435,6 +471,8 @@ static void display_task(void *arg) {
 extern "C" void app_main() {
     // Initialise Arduino runtime (Serial, millis, SPI, etc.)
     initArduino();
+
+    edge_events_init();
 
 #if CONFIG_EDGE_IMPULSE_ENABLE
     edge_impulse_start();
