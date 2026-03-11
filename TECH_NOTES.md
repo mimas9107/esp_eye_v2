@@ -61,3 +61,13 @@ app_main()
 - 測試模式為編譯期開關（`UI_TEST_MODE`）；開啟後會自動輪播狀態方便檢視。
 - 狀態切換時會輸出 free heap；若啟用 FreeRTOS run-time stats，會一併輸出各 task CPU 佔用。
 - Idle 動畫會定期顯示 happy 表情，採分幀執行（每幀一步）以避免阻塞與狀態延遲。
+
+---
+
+## 整合驗證（2026-03-12）
+
+- `idf.py build` 成功。
+- WiFi/NTP/WebSocket 皆可正常連線，伺服器端可看到 ESP32 連線。
+- Idle FPS 約 20~21。
+- `idf.py size` 摘要：App binary 約 1.04 MB（app 分割區剩餘約 29%）。
+- `idf.py size` 摘要：IRAM 使用約 74%，DRAM 使用約 35%。

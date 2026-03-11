@@ -7,9 +7,12 @@ This project is an ESP32 demo that renders an animated eye on an ST7735 128x160 
 - Top-level build system: ESP-IDF CMake.
 - Local components:
   - components/TFT_eSPI: trimmed TFT_eSPI port for ESP32 + ST7735 only.
+  - components/edge_impulse: Edge Impulse SDK 包裝元件（可選，Kconfig 開關控制）。
+  - components/ui_state: UI 狀態佇列與事件介面（供顯示與喚醒流程共用）。
   - main: application entry (main.cpp) and assets (image.h).
 - Managed components:
   - arduino-esp32 via ESP-IDF Component Manager (main/idf_component.yml).
+  - esp_websocket_client via ESP-IDF Component Manager (main/idf_component.yml).
 
 ## Dependencies
 - ESP-IDF v5.5+ (tested with 5.5.2).
@@ -22,6 +25,10 @@ This project is an ESP32 demo that renders an animated eye on an ST7735 128x160 
   - Only compile TFT_eSPI.cpp.
   - Do NOT compile Extensions/*.cpp as separate units; they are included by TFT_eSPI.cpp.
   - INCLUDE_DIRS must include Extensions, Fonts, and Processors.
+- Edge Impulse component build:
+  - 使用 CONFIG_EDGE_IMPULSE_ENABLE 控制是否編譯 SDK。
+  - 啟用時需將 edge-impulse-sdk、tflite-model、model-parameters 放在 components/edge_impulse/ 之下。
+  - 目前 WiFi/NTP/WebSocket 由 Edge Impulse 元件內部初始化；WiFi 優先讀取 NVS，缺省時使用 Kconfig（`ESP_MIAO_WIFI_SSID` / `ESP_MIAO_WIFI_PASSWORD`）。
 - Hardware configuration:
   - Use Kconfig via menuconfig for driver and pin mapping.
   - Do NOT hardcode pins in source; keep them in sdkconfig.
@@ -39,6 +46,7 @@ This project is an ESP32 demo that renders an animated eye on an ST7735 128x160 
   - SPI2_HOST (VSPI), 27 MHz.
   - ST7735 display with BGR order.
   - Pins are configured via menuconfig (Component config -> TFT_eSPI).
+  - Edge Impulse 麥克風 I2S 腳位：BCK=GPIO32、WS=GPIO25、DIN=GPIO33（INMP441）。
 
 ## Code Boundaries
 - main/main.cpp:

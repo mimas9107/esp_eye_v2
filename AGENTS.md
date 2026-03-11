@@ -37,7 +37,7 @@ This document defines workflow control, development contracts, and collaboration
 
 ## Collaboration Rules
 - If you touch build, config, or component structure, update SPEC.md if behavior or contracts change.
-- Add or update `CHANGELOG.md` entries for any functional or visible behavior changes.
+- Add or update `CHANGELOG.md` entries for any functional or visible behavior changes. Traditional Chinese for all project documents is preferred.
 - Prefer ASCII in new files unless there is a strong reason to use another language.
 - Keep documentation factual and short; avoid duplicate content across files.
 

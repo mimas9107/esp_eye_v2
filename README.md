@@ -43,6 +43,11 @@ esp_eye_v2/
         ├── Extensions/
         ├── Processors/         ← 僅保留 TFT_eSPI_ESP32.c/h
         └── TFT_Drivers/        ← 僅保留 ST7735_*.h
+    └── edge_impulse/           ← Edge Impulse 元件（可選，Kconfig 開關）
+        ├── edge-impulse-sdk/
+        ├── tflite-model/
+        └── model-parameters/
+    └── ui_state/               ← UI 狀態佇列元件
 ```
 
 > `managed_components/` 和 `build/` 已加入 `.gitignore`，執行 `idf.py build` 時會自動重建。
@@ -193,6 +198,34 @@ dependencies:
 
 - 顯示由 `display_task` 執行並固定在 Core 1。
 - UI 狀態透過 Queue 驅動，非 Idle 狀態只畫一次英文文字提示，Idle 狀態以低 FPS 跑眼睛動畫。
+
+---
+
+## Edge Impulse 整合（可選）
+
+- 以 `CONFIG_EDGE_IMPULSE_ENABLE` 控制是否啟用 Edge Impulse SDK。
+- 目前 WebSocket/ACK 的 Server URL 仍為硬編碼（見 `components/edge_impulse/edge_impulse_impl.cpp`）。
+
+WiFi 設定來源優先序：
+1. NVS（若已儲存 `wifi_ssid` / `wifi_pass`）
+2. Kconfig（`ESP_MIAO_WIFI_SSID` / `ESP_MIAO_WIFI_PASSWORD`）
+
+啟用方式：
+
+```bash
+idf.py menuconfig
+# Component config → Edge Impulse → Enable
+```
+
+---
+
+## 整合測試結果（2026-03-12）
+
+- `idf.py build` 成功。
+- WiFi 連線、NTP 同步與 WebSocket 連線成功。
+- Wake Word 偵測流程正常、伺服器端可接到 ESP32 連線。
+- Idle FPS 約 20~21（序列埠 log）。
+- `idf.py size` 顯示 app 二進位大小約 1.04 MB，剩餘約 29% 分割區空間。
 - Idle FPS 會輸出到序列埠（log tag: `UI`），預設為 20（`UI_IDLE_FPS`）。
 - 狀態切換時會輸出 free heap；若啟用 FreeRTOS run-time stats，會一併輸出各 task CPU 佔用。
 - 測試模式為編譯期開關：`UI_TEST_MODE`，開啟後會自動輪播狀態方便檢視。

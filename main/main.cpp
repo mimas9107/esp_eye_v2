@@ -21,6 +21,10 @@
 #include "freertos/queue.h"
 #include "esp_log.h"
 #include "esp_heap_caps.h"
+#include "ui_state.h"
+#if CONFIG_EDGE_IMPULSE_ENABLE
+#include "edge_impulse.h"
+#endif
 
 // ── TFT instance ──────────────────────────────────────────────────────────────
 TFT_eSPI tft = TFT_eSPI();
@@ -213,31 +217,6 @@ void draw_image() {
 }
 
 // ── UI state and display control ─────────────────────────────────────────────
-typedef enum {
-    UI_SLEEPING = 0,
-    UI_IDLE,
-    UI_WAKE,
-    UI_LISTENING,
-    UI_THINKING,
-    UI_ACTION,
-    UI_ERROR
-} ui_state_t;
-
-typedef struct {
-    ui_state_t state;
-    uint32_t ts_ms;
-} ui_event_t;
-
-// UI 狀態事件佇列：只保留最新狀態
-static QueueHandle_t ui_queue = NULL;
-
-static void ui_set_state(ui_state_t state) {
-    // 覆寫式寫入，避免狀態堆積
-    if (!ui_queue) return;
-    ui_event_t ev = { state, (uint32_t)millis() };
-    xQueueOverwrite(ui_queue, &ev);
-}
-
 static void ui_draw_text(const char *text) {
     // 低成本狀態顯示（英文文字）
     tft.fillScreen(ST7735_BLACK);
@@ -423,7 +402,7 @@ static void display_task(void *arg) {
     while (true) {
         if (current_state == UI_IDLE) {
             // Idle 狀態：固定 FPS 更新動畫
-            if (xQueueReceive(ui_queue, &ev, 0) == pdTRUE) {
+            if (ui_pop_state(&ev, 0)) {
                 current_state = ev.state;
                 ui_apply_state(current_state);
                 continue;
@@ -440,7 +419,7 @@ static void display_task(void *arg) {
             vTaskDelayUntil(&last_wake, frame_ticks);
         } else {
             // 非 Idle：等待新狀態，保持靜態顯示
-            if (xQueueReceive(ui_queue, &ev, portMAX_DELAY) == pdTRUE) {
+            if (ui_pop_state(&ev, portMAX_DELAY)) {
                 current_state = ev.state;
                 ui_apply_state(current_state);
                 if (current_state == UI_IDLE) {
@@ -457,10 +436,12 @@ extern "C" void app_main() {
     // Initialise Arduino runtime (Serial, millis, SPI, etc.)
     initArduino();
 
-    ui_queue = xQueueCreate(1, sizeof(ui_event_t));
-    if (ui_queue) {
-        ui_set_state(UI_IDLE);
-    }
+#if CONFIG_EDGE_IMPULSE_ENABLE
+    edge_impulse_start();
+#endif
+
+    ui_state_init();
+    ui_publish_state(UI_IDLE);
 
     const uint32_t display_stack = 8192;
     const UBaseType_t display_priority = 2;

@@ -4,3 +4,4 @@ dependencies:
   espressif/arduino-esp32:
     version: "3.3.7"
     # Pinned to a release compatible with ESP-IDF v5.x
+  espressif/esp_websocket_client: "*"

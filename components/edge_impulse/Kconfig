@@ -1,0 +1,22 @@
+menu "Edge Impulse"
+
+config EDGE_IMPULSE_ENABLE
+    bool "Enable Edge Impulse wake word pipeline"
+    default n
+    help
+        Enable the Edge Impulse SDK build and wake word pipeline.
+
+config ESP_MIAO_WIFI_SSID
+    string "WiFi SSID"
+    default "YOUR_SSID"
+    help
+        WiFi SSID to connect to.
+
+config ESP_MIAO_WIFI_PASSWORD
+    string "WiFi Password"
+    default "YOUR_PASS"
+    help
+        WiFi Password to connect to.
+
+endmenu
+
