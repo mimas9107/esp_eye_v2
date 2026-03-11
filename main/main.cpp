@@ -16,9 +16,18 @@
 #include <TFT_eSPI.h>
 #include <SPI.h>
 #include "image.h"
+#include "freertos/FreeRTOS.h"
+#include "freertos/task.h"
+#include "freertos/queue.h"
+#include "esp_log.h"
 
 // ── TFT instance ──────────────────────────────────────────────────────────────
 TFT_eSPI tft = TFT_eSPI();
+
+// ── UI config ───────────────────────────────────────────────────────────────
+#define UI_TEST_MODE 1
+#define UI_TEST_STEP_MS 5000
+static const char *TAG_UI = "UI";
 
 // ── RGB565 colour macro (unchanged from original) ─────────────────────────────
 #define RGB(r, g, b) (((r&0xF8)<<8)|((g&0xFC)<<3)|(b>>3))
@@ -65,6 +74,9 @@ void drawFilledInscribedEllipse(int x_center, int y_center,
 {
     float factorHE = 1.4;
     for (int y = y_center - b1; y <= y_center + b1; y++) {
+        if ((y & 0x0F) == 0) {
+            delay(0);
+        }
         float y_ = y;
         float disc0   = (1 - (y_ - y_center)*(y_ - y_center) / (b0*b0));
         float disc1   = (1 - (y_ - y_center)*(y_ - y_center) / (b1*b1));
@@ -182,6 +194,9 @@ void demo_draw_eyes() {
 // ── Image display (PROGMEM removed – ESP32 reads flash directly) ───────────────
 void draw_image() {
     for (uint16_t i = 0; i < FACE2_SM_HEIGHT; i++) {
+        if ((i & 0x07) == 0) {
+            delay(0);
+        }
         for (uint16_t j = 0; j < FACE2_SM_WIDTH; j++) {
             uint16_t v = face2_sm[i * FACE2_SM_WIDTH + j];
             tft.drawPixel(2*j,   2*i,   v);
@@ -192,25 +207,178 @@ void draw_image() {
     }
 }
 
-// ── Arduino setup / loop (called from app_main below) ────────────────────────
+// ── UI state and display control ─────────────────────────────────────────────
+typedef enum {
+    UI_SLEEPING = 0,
+    UI_IDLE,
+    UI_WAKE,
+    UI_LISTENING,
+    UI_THINKING,
+    UI_ACTION,
+    UI_ERROR
+} ui_state_t;
+
+typedef struct {
+    ui_state_t state;
+    uint32_t ts_ms;
+} ui_event_t;
+
+static QueueHandle_t ui_queue = NULL;
+
+static void ui_set_state(ui_state_t state) {
+    if (!ui_queue) return;
+    ui_event_t ev = { state, (uint32_t)millis() };
+    xQueueOverwrite(ui_queue, &ev);
+}
+
+static void ui_draw_text(const char *text) {
+    tft.fillScreen(ST7735_BLACK);
+    tft.setCursor(0, 50, 2);
+    tft.setTextColor(TFT_WHITE, TFT_BLACK);
+    tft.setTextSize(2);
+    tft.println(text);
+}
+
+static void ui_apply_state(ui_state_t state) {
+    switch (state) {
+        case UI_SLEEPING:
+            ui_draw_text("SLEEP");
+            break;
+        case UI_IDLE:
+            tft.fillScreen(ST7735_BLACK);
+            break;
+        case UI_WAKE:
+            ui_draw_text("WAKE");
+            break;
+        case UI_LISTENING:
+            ui_draw_text("LISTENING");
+            break;
+        case UI_THINKING:
+            ui_draw_text("THINKING");
+            break;
+        case UI_ACTION:
+            ui_draw_text("ACTION");
+            break;
+        case UI_ERROR:
+            ui_draw_text("ERROR");
+            break;
+        default:
+            ui_draw_text("UNKNOWN");
+            break;
+    }
+}
+
+static void ui_log_fps(int fps) {
+    ESP_LOGI(TAG_UI, "Idle FPS: %d", fps);
+}
+
+// ── Idle animation (lightweight, frame-based) ────────────────────────────────
+static void idle_anim_reset(void) {
+    eye_reset();
+}
+
+static void idle_anim_step(void) {
+    static const float blink_ratio[] = {1.0f, 0.85f, 0.75f, 0.55f, 0.4f, 0.3f, 0.2f, 0.1f, 0.05f};
+    static const int blink_len = (int)(sizeof(blink_ratio) / sizeof(blink_ratio[0]));
+    static bool blinking = false;
+    static int blink_step = 0;
+    static uint32_t next_blink_ms = 0;
+
+    uint32_t now = (uint32_t)millis();
+    if (!blinking && now >= next_blink_ms) {
+        blinking = true;
+        blink_step = 0;
+    }
+
+    if (blinking) {
+        int total = blink_len * 2 - 2;
+        int idx = (blink_step < blink_len) ? blink_step : (total - blink_step);
+        eye_radius_y = (int)(eye_radius_y_ref * blink_ratio[idx]);
+        draw_eyes(eye_center_x_ref - eye_pitch, 72, eye_pitch, eye_offset_happy_ref);
+        blink_step++;
+        if (blink_step >= total) {
+            blinking = false;
+            eye_radius_y = eye_radius_y_ref;
+            next_blink_ms = now + 2500;
+        }
+    } else {
+        eye_radius_y = eye_radius_y_ref;
+        draw_eyes(eye_center_x_ref - eye_pitch, 72, eye_pitch, eye_offset_happy_ref);
+    }
+}
+
+// ── Arduino setup / loop (called from display task below) ────────────────────
 void setup() {
     tft.init();
     tft.setRotation(0);
     tft.fillScreen(ST7735_BLACK);
-
-    tft.setCursor(0, 0, 2);
     tft.setTextColor(TFT_WHITE, TFT_BLACK);
-    tft.setTextSize(1);
-    tft.println("Eyes animation demo.");
-    tft.println("Intellar.ca");
-    delay(2000);
-
-    tft.fillScreen(ST7735_BLACK);
-    //draw_image();
+    tft.setTextSize(2);
 }
 
 void loop() {
-    demo_draw_eyes();
+    idle_anim_step();
+}
+
+#if UI_TEST_MODE
+static void ui_test_task(void *arg) {
+    (void)arg;
+    const ui_state_t seq[] = {
+        UI_SLEEPING, UI_IDLE, UI_WAKE, UI_LISTENING, UI_THINKING, UI_ACTION, UI_ERROR
+    };
+    const int seq_len = (int)(sizeof(seq) / sizeof(seq[0]));
+    int idx = 0;
+    while (true) {
+        ui_set_state(seq[idx]);
+        idx = (idx + 1) % seq_len;
+        vTaskDelay(pdMS_TO_TICKS(UI_TEST_STEP_MS));
+    }
+}
+#endif
+
+// ── Display task (runs on Core 1) ───────────────────────────────────────────
+static void display_task(void *arg) {
+    (void)arg;
+    setup();
+    idle_anim_reset();
+
+    ui_state_t current_state = UI_IDLE;
+    ui_apply_state(current_state);
+
+    const TickType_t frame_ticks = pdMS_TO_TICKS(1000 / 12);
+    TickType_t last_wake = xTaskGetTickCount();
+    ui_event_t ev;
+    uint32_t fps_last_ms = (uint32_t)millis();
+    int fps_frames = 0;
+
+    while (true) {
+        if (current_state == UI_IDLE) {
+            if (xQueueReceive(ui_queue, &ev, 0) == pdTRUE) {
+                current_state = ev.state;
+                ui_apply_state(current_state);
+                continue;
+            }
+            loop();
+            delay(0);
+            fps_frames++;
+            uint32_t now_ms = (uint32_t)millis();
+            if (now_ms - fps_last_ms >= 1000U) {
+                ui_log_fps(fps_frames);
+                fps_frames = 0;
+                fps_last_ms = now_ms;
+            }
+            vTaskDelayUntil(&last_wake, frame_ticks);
+        } else {
+            if (xQueueReceive(ui_queue, &ev, portMAX_DELAY) == pdTRUE) {
+                current_state = ev.state;
+                ui_apply_state(current_state);
+                if (current_state == UI_IDLE) {
+                    idle_anim_reset();
+                    last_wake = xTaskGetTickCount();
+                }
+            }
+        }
+    }
 }
 
 // ── ESP-IDF entry point ───────────────────────────────────────────────────────
@@ -218,8 +386,27 @@ extern "C" void app_main() {
     // Initialise Arduino runtime (Serial, millis, SPI, etc.)
     initArduino();
 
-    setup();
+    ui_queue = xQueueCreate(1, sizeof(ui_event_t));
+    if (ui_queue) {
+        ui_set_state(UI_IDLE);
+    }
+
+    const uint32_t display_stack = 8192;
+    const UBaseType_t display_priority = 2;
+    const BaseType_t display_core = 1;
+
+    xTaskCreatePinnedToCore(display_task, "display", display_stack, NULL,
+                            display_priority, NULL, display_core);
+
+#if UI_TEST_MODE
+    const uint32_t test_stack = 2048;
+    const UBaseType_t test_priority = 1;
+    const BaseType_t test_core = 0;
+    xTaskCreatePinnedToCore(ui_test_task, "ui_test", test_stack, NULL,
+                            test_priority, NULL, test_core);
+#endif
+
     while (true) {
-        loop();
+        vTaskDelay(pdMS_TO_TICKS(1000));
     }
 }
