@@ -16,7 +16,7 @@
 #define TFT_HEIGHT 160
 
 // ── ST7735 tab colour (matches original sketch) ───────────────
-#define ST7735_BLACKTAB
+#define ST7735_GREENTAB
 
 // ── Colour order ──────────────────────────────────────────────
 #define TFT_RGB_ORDER TFT_BGR
