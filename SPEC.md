@@ -43,7 +43,7 @@ This project is an ESP32 demo that renders an animated eye on an ST7735 128x160 
   - app_main initializes Arduino runtime, then starts a display task pinned to Core 1.
   - The display task calls setup() once, then runs loop() in a blocking while(true) loop.
   - CONFIG_AUTOSTART_ARDUINO is set to n to prevent arduino-esp32 from spawning loopTask automatically.
-  - Display updates are driven by a UI state queue; non-idle states render text once, idle renders a low-FPS animation.
+  - Display updates are driven by a UI state queue; non-idle states render text once, idle renders a low-FPS animation with timeout back to idle.
 - Hardware IO:
   - SPI2_HOST (VSPI), 27 MHz.
   - ST7735 display with BGR order.

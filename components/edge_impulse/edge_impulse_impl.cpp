@@ -410,16 +410,21 @@ static vad_stats_t vad_stats = {0};
 // Set to 1 to test Binary Transfer, 0 for Base64
 #define USE_BINARY_STREAM    1
 
+#define RECORD_CHUNK_SAMPLES  2048
+#define RECORD_CHUNK_BYTES    (RECORD_CHUNK_SAMPLES * sizeof(int16_t))
+#define RECORD_B64_MAX_LEN    (((RECORD_CHUNK_BYTES + 2) / 3) * 4 + 1)
+#define RECORD_JSON_MAX_LEN   (RECORD_B64_MAX_LEN + 256)
+
 /* ---------- Globals ---------- */
 
 static i2s_chan_handle_t rx_chan = NULL;
 static float ei_slice_buffer[EI_CLASSIFIER_SLICE_SIZE];
 
-/* ---------- Dynamic Audio Buffer for Recording (3 seconds, 96KB) ---------- */
+/* ---------- Recording Buffers (Chunked Streaming) ---------- */
 
-static int16_t *recording_buffer = NULL;
-static size_t recording_samples = 0;
-static bool recording_complete = false;
+static int16_t record_chunk_buf[RECORD_CHUNK_SAMPLES];
+static char record_b64_buf[RECORD_B64_MAX_LEN];
+static char record_json_buf[RECORD_JSON_MAX_LEN];
 
 /* ---------- I2S Initialization ---------- */
 
@@ -826,6 +831,103 @@ static bool send_audio_stream_binary(const int16_t *audio_data, size_t sample_co
     return (samples_sent >= sample_count);
 }
 
+/* ---------- Stream Audio Live (Chunked) ---------- */
+
+static bool stream_audio_binary_live(size_t total_samples, float confidence)
+{
+    if (!ws_client || !ws_connected || !esp_websocket_client_is_connected(ws_client)) {
+        ESP_LOGE(TAG, "WebSocket not connected or stale");
+        ws_connected = false;
+        return false;
+    }
+
+    char start_json[256];
+    snprintf(start_json, sizeof(start_json),
+             "{\"device_id\":\"esp32_01\",\"timestamp\":%llu,\"type\":\"audio_start\",\"payload\":{\"total_samples\":%zu,\"confidence\":%.3f,\"transfer_mode\":\"binary\"}}",
+             get_timestamp_ms(), total_samples, confidence);
+
+    if (esp_websocket_client_send_text(ws_client, start_json, strlen(start_json), portMAX_DELAY) < 0) {
+        ws_connected = false;
+        return false;
+    }
+
+    size_t samples_sent = 0;
+    while (samples_sent < total_samples) {
+        size_t to_read = total_samples - samples_sent;
+        if (to_read > RECORD_CHUNK_SAMPLES) to_read = RECORD_CHUNK_SAMPLES;
+
+        if (!read_audio_to_buffer(record_chunk_buf, to_read)) {
+            ESP_LOGE(TAG, "Failed to read audio chunk");
+            return false;
+        }
+
+        if (esp_websocket_client_send_bin(ws_client, (const char *)record_chunk_buf,
+                                          to_read * sizeof(int16_t), portMAX_DELAY) < 0) {
+            ESP_LOGE(TAG, "Failed to send binary chunk");
+            ws_connected = false;
+            return false;
+        }
+
+        samples_sent += to_read;
+    }
+
+    return true;
+}
+
+static bool stream_audio_b64_live(size_t total_samples, float confidence)
+{
+    if (!ws_client || !ws_connected || !esp_websocket_client_is_connected(ws_client)) {
+        ESP_LOGE(TAG, "WebSocket not connected or stale");
+        ws_connected = false;
+        return false;
+    }
+
+    char start_json[256];
+    snprintf(start_json, sizeof(start_json),
+             "{\"device_id\":\"esp32_01\",\"timestamp\":%llu,\"type\":\"audio_start\",\"payload\":{\"total_samples\":%zu,\"confidence\":%.3f,\"transfer_mode\":\"base64\"}}",
+             get_timestamp_ms(), total_samples, confidence);
+
+    if (esp_websocket_client_send_text(ws_client, start_json, strlen(start_json), portMAX_DELAY) < 0) {
+        ws_connected = false;
+        return false;
+    }
+
+    size_t samples_sent = 0;
+    int chunk_idx = 0;
+
+    while (samples_sent < total_samples) {
+        size_t to_read = total_samples - samples_sent;
+        if (to_read > RECORD_CHUNK_SAMPLES) to_read = RECORD_CHUNK_SAMPLES;
+
+        if (!read_audio_to_buffer(record_chunk_buf, to_read)) {
+            ESP_LOGE(TAG, "Failed to read audio chunk");
+            return false;
+        }
+
+        size_t b64_out_len = 0;
+        mbedtls_base64_encode((unsigned char *)record_b64_buf, sizeof(record_b64_buf), &b64_out_len,
+                              (const unsigned char *)record_chunk_buf, to_read * sizeof(int16_t));
+        record_b64_buf[b64_out_len] = '\0';
+
+        bool is_last = (samples_sent + to_read >= total_samples);
+        int written = snprintf(record_json_buf, sizeof(record_json_buf),
+                               "{\"device_id\":\"esp32_01\",\"timestamp\":%llu,\"type\":\"audio_chunk\",\"payload\":{\"chunk_index\":%d,\"is_last\":%s,\"data_base64\":\"%s\"}}",
+                               get_timestamp_ms(), chunk_idx, is_last ? "true" : "false", record_b64_buf);
+
+        if (esp_websocket_client_send_text(ws_client, record_json_buf, written, portMAX_DELAY) < 0) {
+            ESP_LOGE(TAG, "Failed to send chunk %d", chunk_idx);
+            ws_connected = false;
+            return false;
+        }
+
+        samples_sent += to_read;
+        chunk_idx++;
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+
+    return true;
+}
+
 /* ---------- Edge Impulse Signal Callback ---------- */
 
 static int ei_audio_signal_get_data(size_t offset, size_t length, float *out_ptr)
@@ -959,54 +1061,28 @@ static void inference_task(void *arg)
             
             printf(">>> REC: Starting 3-second recording...\r\n");
             edge_event_publish(EDGE_EVT_RECORD_START, detected_confidence);
-            
-            // Allocate memory dynamically
-            recording_buffer = (int16_t *)malloc(AUDIO_BUFFER_SIZE_3S);
-            if (recording_buffer == NULL) {
-                printf(">>> REC: Failed to allocate memory (OOM)!\r\n");
-                continue;
+
+            vTaskDelay(pdMS_TO_TICKS(100));
+
+            uint64_t ts = get_timestamp_ms();
+            printf(">>> WAV: Streaming %d samples via WebSocket (%s) at TS: %llu...\r\n",
+                   AUDIO_SAMPLES_3S, USE_BINARY_STREAM ? "Binary" : "Base64 Streaming", ts);
+
+            edge_event_publish(EDGE_EVT_SEND_START, detected_confidence);
+            bool sent = false;
+            if (USE_BINARY_STREAM) {
+                sent = stream_audio_binary_live(AUDIO_SAMPLES_3S, detected_confidence);
+            } else {
+                sent = stream_audio_b64_live(AUDIO_SAMPLES_3S, detected_confidence);
             }
 
-            recording_samples = 0;
-            recording_complete = false;
-            
-            bool success = read_audio_to_buffer(recording_buffer, AUDIO_SAMPLES_3S);
-            
-            if (success) {
-                recording_samples = AUDIO_SAMPLES_3S;
-                recording_complete = true;
-                printf(">>> REC: Completed. Samples: %zu\r\n", recording_samples);
+            if (sent) {
+                printf(">>> WAV: Sent successfully!\r\n");
             } else {
-                printf(">>> REC: Failed during I2S read!\r\n");
+                printf(">>> WAV: Send failed!\r\n");
+                edge_event_publish(EDGE_EVT_SEND_FAIL, detected_confidence);
             }
-            
-            vTaskDelay(pdMS_TO_TICKS(100));
-            
-            if (recording_complete && recording_samples > 0) {
-                uint64_t ts = get_timestamp_ms();
-                printf(">>> WAV: Sending %zu samples via WebSocket (%s) at TS: %llu...\r\n", 
-                       recording_samples, USE_BINARY_STREAM ? "Binary" : "Base64 Streaming", ts);
-                
-                edge_event_publish(EDGE_EVT_SEND_START, detected_confidence);
-                bool sent = false;
-                if (USE_BINARY_STREAM) {
-                    sent = send_audio_stream_binary(recording_buffer, recording_samples, detected_confidence);
-                } else {
-                    sent = send_audio_stream_b64(recording_buffer, recording_samples, detected_confidence);
-                }
-                
-                if (sent) {
-                    printf(">>> WAV: Sent successfully!\r\n");
-                } else {
-                    printf(">>> WAV: Send failed!\r\n");
-                    edge_event_publish(EDGE_EVT_SEND_FAIL, detected_confidence);
-                }
-            }
-            
-            // FREE memory after sending
-            free(recording_buffer);
-            recording_buffer = NULL;
-            
+
             vTaskDelay(pdMS_TO_TICKS(500));
         }
     }

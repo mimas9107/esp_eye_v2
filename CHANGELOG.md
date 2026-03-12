@@ -21,6 +21,9 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Added a UI state queue to render text-only status screens and a lightweight idle animation.
 - Bump idle animation target FPS to 20.
 - Idle animation now includes happy expression via frame-based steps (non-blocking).
+- UI 非 Idle 狀態加入逾時自動回復 Idle，避免 ACTION 卡住。
+- 錄音改為分段串流以降低記憶體壓力並避免 DSP 初始化失敗。
+- Idle FPS log 預設關閉（避免序列埠雜訊）。
 
 ### Deprecated
 - 
@@ -31,6 +34,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Fixed
 - Yield during long draw loops to reduce task starvation and WDT risk.
 - Fix build break from misplaced UI metrics logging call.
+- Edge Impulse 錄音改為即時分段串流，避免大塊緩衝造成 OOM 與 FFT 初始化失敗。
 
 ### Security
 - 

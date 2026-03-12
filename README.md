@@ -226,7 +226,7 @@ idf.py menuconfig
 - `idf.py build` 成功。
 - WiFi 連線、NTP 同步與 WebSocket 連線成功。
 - Wake Word 偵測流程正常、伺服器端可接到 ESP32 連線。
-- Idle FPS 約 20~21（序列埠 log）。
+- Idle FPS 約 20~21（可選 log；目前已關閉）。
 - `idf.py size` 顯示 app 二進位大小約 1.04 MB，剩餘約 29% 分割區空間。
 - Idle FPS 會輸出到序列埠（log tag: `UI`），預設為 20（`UI_IDLE_FPS`）。
 - 狀態切換時會輸出 free heap；若啟用 FreeRTOS run-time stats，會一併輸出各 task CPU 佔用。

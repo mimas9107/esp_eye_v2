@@ -59,7 +59,9 @@ app_main()
 - UI 狀態透過 Queue 驅動：非 Idle 狀態只畫一次文字；Idle 狀態以低 FPS 跑眼睛動畫。
 - Edge Impulse 只發布事件（`edge_impulse_events`），由主程式映射成 UI 狀態。
 - edge_impulse_events 佇列長度為 1，使用 xQueueOverwrite 保留最新事件以避免 queue assert。
-- Idle FPS 會在序列埠輸出（log tag: `UI`），非 Idle 不計算 FPS 以避免額外負擔。Idle FPS 預設為 20（`UI_IDLE_FPS`）。
+- Edge Impulse 錄音採分段串流，避免一次配置 3 秒緩衝導致 OOM 或 DSP 初始化失敗。
+- 非 Idle 狀態有逾時自動回到 Idle（避免 ACTION 停住）。
+- Idle FPS 會在序列埠輸出（log tag: `UI`），非 Idle 不計算 FPS 以避免額外負擔。Idle FPS 預設為 20（`UI_IDLE_FPS`）。目前預設關閉（`UI_LOG_FPS=0`）。
 - 測試模式為編譯期開關（`UI_TEST_MODE`）；開啟後會自動輪播狀態方便檢視。
 - 狀態切換時會輸出 free heap；若啟用 FreeRTOS run-time stats，會一併輸出各 task CPU 佔用。
 - Idle 動畫會定期顯示 happy 表情，採分幀執行（每幀一步）以避免阻塞與狀態延遲。
@@ -73,3 +75,4 @@ app_main()
 - Idle FPS 約 20~21。
 - `idf.py size` 摘要：App binary 約 1.04 MB（app 分割區剩餘約 29%）。
 - `idf.py size` 摘要：IRAM 使用約 74%，DRAM 使用約 35%。
+- `idf.py size`（最新）：bin 約 0x109af0、IRAM 74.37%、DRAM 36.98%（2026-03-12）。

@@ -34,6 +34,7 @@ TFT_eSPI tft = TFT_eSPI();
 #define UI_TEST_MODE 0
 #define UI_TEST_STEP_MS 5000
 #define UI_IDLE_FPS 20
+#define UI_LOG_FPS 0
 static const char *TAG_UI = "UI";
 
 // ── RGB565 colour macro (unchanged from original) ─────────────────────────────
@@ -273,7 +274,25 @@ static void ui_apply_state(ui_state_t state) {
 
 static void ui_log_fps(int fps) {
     // 僅 Idle 狀態輸出 FPS
+    (void)fps;
+#if UI_LOG_FPS
     ESP_LOGI(TAG_UI, "Idle FPS: %d", fps);
+#endif
+}
+
+static uint32_t ui_state_timeout_ms(ui_state_t state) {
+    switch (state) {
+        case UI_ACTION:
+        case UI_ERROR:
+        case UI_WAKE:
+            return 1500;
+        case UI_LISTENING:
+            return 3500;
+        case UI_THINKING:
+            return 5000;
+        default:
+            return 0;
+    }
 }
 
 static bool ui_state_from_edge_event(const edge_event_t *ev, ui_state_t *out_state) {
@@ -427,6 +446,7 @@ static void display_task(void *arg) {
 
     ui_state_t current_state = UI_IDLE;
     ui_apply_state(current_state);
+    uint32_t state_enter_ms = (uint32_t)millis();
 
     const TickType_t frame_ticks = pdMS_TO_TICKS(1000 / UI_IDLE_FPS);
     TickType_t last_wake = xTaskGetTickCount();
@@ -441,10 +461,12 @@ static void display_task(void *arg) {
             if (ui_pop_state(&ev, 0)) {
                 current_state = ev.state;
                 ui_apply_state(current_state);
+                state_enter_ms = (uint32_t)millis();
                 continue;
             }
             loop();
             delay(0);
+#if UI_LOG_FPS
             fps_frames++;
             uint32_t now_ms = (uint32_t)millis();
             if (now_ms - fps_last_ms >= 1000U) {
@@ -452,13 +474,23 @@ static void display_task(void *arg) {
                 fps_frames = 0;
                 fps_last_ms = now_ms;
             }
+#endif
             vTaskDelayUntil(&last_wake, frame_ticks);
         } else {
             // 非 Idle：等待新狀態，保持靜態顯示
             if (ui_pop_state(&ev, pdMS_TO_TICKS(50))) {
                 current_state = ev.state;
                 ui_apply_state(current_state);
+                state_enter_ms = (uint32_t)millis();
                 if (current_state == UI_IDLE) {
+                    idle_anim_reset();
+                    last_wake = xTaskGetTickCount();
+                }
+            } else {
+                uint32_t timeout_ms = ui_state_timeout_ms(current_state);
+                if (timeout_ms > 0 && ((uint32_t)millis() - state_enter_ms) >= timeout_ms) {
+                    current_state = UI_IDLE;
+                    ui_apply_state(current_state);
                     idle_anim_reset();
                     last_wake = xTaskGetTickCount();
                 }
