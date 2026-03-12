@@ -43,12 +43,13 @@ esp_eye_v2/
         ├── Extensions/
         ├── Processors/         ← 僅保留 TFT_eSPI_ESP32.c/h
         └── TFT_Drivers/        ← 僅保留 ST7735_*.h
-    └── edge_impulse/           ← Edge Impulse 元件（可選，Kconfig 開關）
+    └── eye_ui/                 ← 顯示與狀態機元件（Core 1）
+    └── ui_state/               ← UI 狀態佇列元件
+    └── edge_impulse/           ← Edge Impulse 元件（可選，未與主流程接線）
         ├── edge-impulse-sdk/
         ├── tflite-model/
         └── model-parameters/
-    └── edge_impulse_events/    ← Edge Impulse 事件佇列元件
-    └── ui_state/               ← UI 狀態佇列元件
+    └── edge_impulse_events/    ← Edge Impulse 事件佇列元件（可選）
 ```
 
 > `managed_components/` 和 `build/` 已加入 `.gitignore`，執行 `idf.py build` 時會自動重建。
@@ -136,7 +137,7 @@ void loop()  { ... }
 // ESP-IDF 移植後（顯示任務固定在 Core 1）
 extern "C" void app_main() {
     initArduino();   // ← 這行是關鍵
-    xTaskCreatePinnedToCore(display_task, "display", 8192, NULL, 2, NULL, 1);
+    eye_ui_start();  // Core 1 顯示與狀態機
     while (true) {
         vTaskDelay(pdMS_TO_TICKS(1000));
     }
@@ -199,33 +200,24 @@ dependencies:
 
 - 顯示由 `display_task` 執行並固定在 Core 1。
 - UI 狀態透過 Queue 驅動，非 Idle 狀態只畫一次英文文字提示，Idle 狀態以低 FPS 跑眼睛動畫。
-- Edge Impulse 僅發布事件（`edge_impulse_events`），由主程式將事件映射為 UI 狀態。
+- UI 事件由外部流程透過 `ui_publish_state()` 推送，顯示元件只負責渲染。
 
 ---
 
-## Edge Impulse 整合（可選）
+## Edge Impulse 整合（可選、已脫勾）
 
+此專案目前不再將 Edge Impulse 與主流程接線，保留元件僅供參考或未來整合。若要整合：
 - 以 `CONFIG_EDGE_IMPULSE_ENABLE` 控制是否啟用 Edge Impulse SDK。
+- 透過 `edge_impulse_events` 或自行的流程轉換成 `ui_publish_state()`。
 - 目前 WebSocket/ACK 的 Server URL 仍為硬編碼（見 `components/edge_impulse/edge_impulse_impl.cpp`）。
 
-WiFi 設定來源優先序：
-1. NVS（若已儲存 `wifi_ssid` / `wifi_pass`）
-2. Kconfig（`ESP_MIAO_WIFI_SSID` / `ESP_MIAO_WIFI_PASSWORD`）
-
-啟用方式：
-
-```bash
-idf.py menuconfig
-# Component config → Edge Impulse → Enable
-```
-
 ---
 
-## 整合測試結果（2026-03-12）
+## 整合測試結果（2026-03-12，Edge Impulse 可選）
 
 - `idf.py build` 成功。
 - WiFi 連線、NTP 同步與 WebSocket 連線成功。
-- Wake Word 偵測流程正常、伺服器端可接到 ESP32 連線。
+- Wake Word 偵測流程正常、伺服器端可接到 ESP32 連線（僅在整合 Edge Impulse 時）。
 - Idle FPS 約 20~21（可選 log；目前已關閉）。
 - `idf.py size` 顯示 app 二進位大小約 1.04 MB，剩餘約 29% 分割區空間。
 - Idle FPS 會輸出到序列埠（log tag: `UI`），預設為 20（`UI_IDLE_FPS`）。

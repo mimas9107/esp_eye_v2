@@ -57,8 +57,8 @@ app_main()
 
 - 顯示由獨立 `display` task 執行並固定在 Core 1，避免影響主要流程。
 - UI 狀態透過 Queue 驅動：非 Idle 狀態只畫一次文字；Idle 狀態以低 FPS 跑眼睛動畫。
-- Edge Impulse 只發布事件（`edge_impulse_events`），由主程式映射成 UI 狀態。
-- edge_impulse_events 佇列長度為 1，使用 xQueueOverwrite 保留最新事件以避免 queue assert。
+- UI 狀態透過 `ui_state` 佇列驅動，顯示元件只負責渲染。
+- edge_impulse_events 佇列長度為 1，使用 xQueueOverwrite 保留最新事件以避免 queue assert（若有整合 Edge Impulse）。
 - Edge Impulse 錄音採分段串流，避免一次配置 3 秒緩衝導致 OOM 或 DSP 初始化失敗。
 - 非 Idle 狀態有逾時自動回到 Idle（避免 ACTION 停住）。
 - Idle FPS 會在序列埠輸出（log tag: `UI`），非 Idle 不計算 FPS 以避免額外負擔。Idle FPS 預設為 20（`UI_IDLE_FPS`）。目前預設關閉（`UI_LOG_FPS=0`）。

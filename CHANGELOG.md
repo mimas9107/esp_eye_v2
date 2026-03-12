@@ -9,6 +9,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 ### Added
 - Optional UI test cycle (compile-time) and idle FPS logging.
 - Log free heap on state transitions; task CPU stats when FreeRTOS run-time stats are enabled.
+- 新增 eye_ui 顯示元件（Core 1），提供 UI 狀態機與眼睛動畫。
 - 新增 Edge Impulse 元件包裝（Kconfig 開關）與 websocket 依賴。
 - 新增 ui_state 元件與喚醒流程狀態事件接線。
 - 完成 Edge Impulse 整合並通過建置、WiFi/NTP/WebSocket 與喚醒流程驗證（2026-03-12）。
@@ -21,6 +22,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 - Added a UI state queue to render text-only status screens and a lightweight idle animation.
 - Bump idle animation target FPS to 20.
 - Idle animation now includes happy expression via frame-based steps (non-blocking).
+- 主程式改為僅啟動 eye_ui，Edge Impulse 與 UI 顯示已脫勾。
 - UI 非 Idle 狀態加入逾時自動回復 Idle，避免 ACTION 卡住。
 - 錄音改為分段串流以降低記憶體壓力並避免 DSP 初始化失敗。
 - Idle FPS log 預設關閉（避免序列埠雜訊）。

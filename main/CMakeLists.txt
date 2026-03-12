@@ -1,5 +1,5 @@
 idf_component_register(
     SRCS "main.cpp"
     INCLUDE_DIRS "."
-    REQUIRES arduino-esp32 TFT_eSPI ui_state edge_impulse edge_impulse_events
+    REQUIRES arduino-esp32 eye_ui
 )

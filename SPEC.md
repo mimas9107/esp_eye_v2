@@ -7,8 +7,9 @@ This project is an ESP32 demo that renders an animated eye on an ST7735 128x160 
 - Top-level build system: ESP-IDF CMake.
 - Local components:
   - components/TFT_eSPI: trimmed TFT_eSPI port for ESP32 + ST7735 only.
-  - components/edge_impulse: Edge Impulse SDK 包裝元件（可選，Kconfig 開關控制）。
-  - components/edge_impulse_events: Edge Impulse 事件佇列（輸出喚醒/錄音/送出等事件）。
+  - components/eye_ui: 顯示與狀態機元件（Core 1）。
+  - components/edge_impulse: Edge Impulse SDK 包裝元件（可選，未與主流程接線）。
+  - components/edge_impulse_events: Edge Impulse 事件佇列（可選）。
   - components/ui_state: UI 狀態佇列與事件介面（供顯示與喚醒流程共用）。
   - main: application entry (main.cpp) and assets (image.h).
 - Managed components:
@@ -30,7 +31,7 @@ This project is an ESP32 demo that renders an animated eye on an ST7735 128x160 
   - 使用 CONFIG_EDGE_IMPULSE_ENABLE 控制是否編譯 SDK。
   - 啟用時需將 edge-impulse-sdk、tflite-model、model-parameters 放在 components/edge_impulse/ 之下。
   - 目前 WiFi/NTP/WebSocket 由 Edge Impulse 元件內部初始化；WiFi 優先讀取 NVS，缺省時使用 Kconfig（`ESP_MIAO_WIFI_SSID` / `ESP_MIAO_WIFI_PASSWORD`）。
-  - Edge Impulse 只輸出事件（edge_impulse_events），UI 由主程式映射與顯示。
+  - Edge Impulse 可輸出事件（edge_impulse_events），由整合端映射到 ui_state。
 - Hardware configuration:
   - Use Kconfig via menuconfig for driver and pin mapping.
   - Do NOT hardcode pins in source; keep them in sdkconfig.
@@ -40,7 +41,7 @@ This project is an ESP32 demo that renders an animated eye on an ST7735 128x160 
 
 ## Interaction Mechanism
 - Execution model:
-  - app_main initializes Arduino runtime, then starts a display task pinned to Core 1.
+  - app_main initializes Arduino runtime, then calls eye_ui_start() to spawn the display task on Core 1.
   - The display task calls setup() once, then runs loop() in a blocking while(true) loop.
   - CONFIG_AUTOSTART_ARDUINO is set to n to prevent arduino-esp32 from spawning loopTask automatically.
   - Display updates are driven by a UI state queue; non-idle states render text once, idle renders a low-FPS animation with timeout back to idle.
@@ -52,7 +53,7 @@ This project is an ESP32 demo that renders an animated eye on an ST7735 128x160 
 
 ## Code Boundaries
 - main/main.cpp:
-  - Owns application lifecycle and animation loop.
+  - Owns application lifecycle.
   - Should remain the only place that calls initArduino() and contains app_main().
 - components/TFT_eSPI:
   - Must stay trimmed to only the used drivers and processor support.
